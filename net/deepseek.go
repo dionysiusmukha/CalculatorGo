@@ -9,6 +9,17 @@ import (
 	"net/http"
 )
 
+
+type Extracted struct {
+	Action      string `json:"action"`       // "curl" | "chat" | "open"
+	Target      string `json:"target,omitempty"` // "browser" | "video" | "app"
+	URL         string `json:"url,omitempty"`
+	Filename    string `json:"filename,omitempty"`
+	App         string `json:"app,omitempty"`    // "vlc" | "chrome" | ...
+	Instruction string `json:"instruction,omitempty"`
+}
+
+
 const proxyURL = "https://deproxy.kchugalinskiy.ru/deeproxy/api/completions"
 const username = "41-2"
 const password = "U0dMUjFs"
@@ -68,11 +79,7 @@ func SendToDeepSeek(query string) (string, error) {
 
 
 
-type Extracted struct {
-	Action      string `json:"action"`      
-	URL         string `json:"url,omitempty"`
-	Instruction string `json:"instruction,omitempty"`
-}
+
 
 
 func sendMessages(messages []map[string]string) (string, error) {
@@ -124,14 +131,22 @@ func sendMessages(messages []map[string]string) (string, error) {
 
 
 func ExtractFreeForm(userText string) (*Extracted, error) {
-	system := `Ты — парсер команд. Преобразуй свободный текст пользователя в СТРОГО валидный JSON
-c полями: {"action": "curl|calc|chat", "url": string|null, "instruction": string|null}.
-- "curl": когда нужно открыть веб-страницу или "открой сайт/страницу/перейди по ссылке".
-- "calc": когда это математическое выражение/операция.
-- "chat": всё остальное (опрос, вопрос, просьба без URL).
-ЕСЛИ присутствует URL (http/https), помести его в "url".
-"instruction" — что сделать ПОСЛЕ получения содержимого (например, "сделай краткую сводку").
-Выводи ТОЛЬКО JSON без комментариев и текста вокруг.`
+	system := `Ты — парсер команд. Верни СТРОГО ВАЛИДНЫЙ JSON вида:
+{
+ "action": "curl|chat|open",
+ "target": "browser|video|app|null",
+ "url": "string|null",
+ "filename": "string|null",
+ "app": "string|null",
+ "instruction": "string|null"
+}
+Правила:
+- Если пользователь просит ОТКРЫТЬ САЙТ в браузере — action:"open", target:"browser", url:"http/https".
+- Если просит ОТКРЫТЬ ВИДЕОФАЙЛ — action:"open", target:"video", filename:"имя файла".
+- Если просит просто ОТКРЫТЬ ЛОКАЛЬНОЕ ПРИЛОЖЕНИЕ — action:"open", target:"app", app:"vlc/chrome/..."
+- Если просит ПРОЧИТАТЬ САЙТ/ДАТЬ СВОДКУ — action:"curl", url:"http/https", instruction:"..."
+- Если это обычный вопрос без URL и без открытия приложений — action:"chat".
+Выводи ТОЛЬКО JSON.`
 	user := userText
 
 	out, err := sendMessages([]map[string]string{

@@ -2,6 +2,7 @@ package logic
 
 import (
 	"Calculator/net"
+	"Calculator/osrun"
 	"fmt"
 	"strconv"
 	"strings"
@@ -105,45 +106,58 @@ func Interpret(cmd string, vars map[string]interface{}) (string, error) {
 		return fmt.Sprintf("HTML got with %s:\n\n%s", url, preview), nil
 	}
 
-	// 4) Классификация/чат ИЛИ арифметика
-	if !strings.Contains(cmd, "=") && !strings.HasPrefix(cmd, "curl ") {
-		// если это НЕ «похоже на математику», пробуем экстрактор/пайплайн
-		if !looksLikeMath(cmd) {
-			ex, err := net.ExtractFreeForm(cmd)
-			if err == nil && ex != nil && strings.ToLower(ex.Action) == "curl" && strings.TrimSpace(ex.URL) != "" {
-				content, err := net.Curl(strings.TrimSpace(ex.URL))
-				if err != nil {
-					return "", err
-				}
-				vars["last_curl"] = content
+	// 4) Свободный текст ...
+if !strings.Contains(cmd, "=") && !strings.HasPrefix(cmd, "curl ") {
+    ex, err := net.ExtractFreeForm(cmd)
+    if err == nil && ex != nil {
 
-				instr := strings.TrimSpace(ex.Instruction)
-				if instr == "" {
-					instr = "Сделай краткую сводку содержимого страницы."
-				}
-				answer, err := net.AskWithContext(instr, content)
-				if err != nil {
-					return "", fmt.Errorf("DeepSeek err (context): %v", err)
-				}
-				return answer, nil
-			}
-			// фолбэк
-			resp, err := net.SendToDeepSeek(cmd)
-			if err != nil {
-				return "", fmt.Errorf("DeepSeek err: %v", err)
-			}
-			return resp, nil
-		}
+        // a) Открыть сайт в браузере
+        if strings.EqualFold(ex.Action, "open") && strings.EqualFold(ex.Target, "browser") && strings.TrimSpace(ex.URL) != "" {
+            if err := osrun.OpenInBrowser(strings.TrimSpace(ex.URL)); err != nil {
+                return "", fmt.Errorf("не удалось открыть в браузере: %v", err)
+            }
+            return fmt.Sprintf("Открыл в браузере: %s", strings.TrimSpace(ex.URL)), nil
+        }
 
-		// иначе — «похоже на математику»: парсим выражение
-		tokens := tokenize(cmd)
-		rpn := toRPN(tokens)
-		val, err := evalRPNWithInterface(rpn, vars)
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("%v", val), nil
-	}
+        // b) Открыть видеофайл в плеере
+        if strings.EqualFold(ex.Action, "open") && strings.EqualFold(ex.Target, "video") && strings.TrimSpace(ex.Filename) != "" {
+            path, ferr := osrun.FindMediaFile(strings.TrimSpace(ex.Filename), 3)
+            if ferr != nil {
+                return "", ferr
+            }
+            if err := osrun.OpenWithPlayer(path); err != nil {
+                return "", fmt.Errorf("не удалось открыть видео: %v", err)
+            }
+            return fmt.Sprintf("Открыл видеофайл: %s", path), nil
+        }
+
+        // c) Старый сценарий: curl + инструкция (сводка и т.п.)
+        if strings.EqualFold(ex.Action, "curl") && strings.TrimSpace(ex.URL) != "" {
+            content, err := net.Curl(strings.TrimSpace(ex.URL))
+            if err != nil {
+                return "", err
+            }
+            vars["last_curl"] = content
+            instr := strings.TrimSpace(ex.Instruction)
+            if instr == "" {
+                instr = "Сделай краткую сводку содержимого страницы."
+            }
+            answer, err := net.AskWithContext(instr, content)
+            if err != nil {
+                return "", fmt.Errorf("ошибка DeepSeek (context): %v", err)
+            }
+            return answer, nil
+        }
+    }
+
+    // Фолбэк — обычный чат
+    response, err := net.SendToDeepSeek(cmd)
+    if err != nil {
+        return "", fmt.Errorf("ошибка DeepSeek: %v", err)
+    }
+    return response, nil
+}
+
 
 
 	// 5) Остальное — арифметика/выражение
