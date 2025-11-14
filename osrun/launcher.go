@@ -10,8 +10,36 @@ import (
 )
 
 var videoExts = []string{".mp4", ".mkv", ".avi", ".mov", ".webm"}
-var browserCandidates = []string{"google-chrome-stable", "google-chrome", "chromium", "firefox", "brave", "xdg-open"}
-var playerCandidates  = []string{"vlc", "mpv", "xdg-open"}
+var browserCandidates = []string{
+	"yandex-browser-stable", "yandex-browser",
+	"firefox",
+	"google-chrome-stable", "google-chrome",
+	"chromium",
+	"brave",
+	"xdg-open",
+}
+var playerCandidates  = []string{"mpv", "xdg-open"}
+
+func normalizeBrowserName(app string) []string {
+	a := strings.ToLower(strings.TrimSpace(app))
+	switch a {
+	case "yandex", "yabrowser", "yandex-browser", "yandex browser", "яндекс", "яндекс-браузер", "yandex-browser-stable":
+		return []string{"yandex-browser-stable", "yandex-browser"}
+	case "chrome", "google-chrome":
+		return []string{"google-chrome-stable", "google-chrome"}
+	case "firefox", "ff":
+		return []string{"firefox"}
+	case "chromium":
+		return []string{"chromium"}
+	case "brave":
+		return []string{"brave"}
+	default:
+		if a != "" {
+			return []string{a}
+		}
+		return nil
+	}
+}
 
 
 func safeDirs() ([]string, error) {
@@ -129,17 +157,35 @@ func depthExceeds(root, path string, maxDepth int) bool {
 }
 
 
-func OpenInBrowser(url string) error {
+
+
+// Открыть URL, с учётом желаемого браузера (если указан)
+func OpenInBrowserPrefer(url, preferred string) error {
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		return fmt.Errorf("некорректный URL: %s", url)
 	}
+
+	// 1) Если пользователь просил конкретный браузер
+	if prefs := normalizeBrowserName(preferred); len(prefs) > 0 {
+		for _, bin := range prefs {
+			if _, err := exec.LookPath(bin); err == nil {
+				return exec.Command(bin, url).Start()
+			}
+		}
+	}
+
+	// 2) Иначе — по общему whitelist
 	for _, bin := range browserCandidates {
 		if _, err := exec.LookPath(bin); err == nil {
-			cmd := exec.Command(bin, url)
-			return cmd.Start()
+			return exec.Command(bin, url).Start()
 		}
 	}
 	return fmt.Errorf("не найден ни один браузер из whitelist")
+}
+
+
+func OpenInBrowser(url string) error {
+	return OpenInBrowserPrefer(url, "")
 }
 
 

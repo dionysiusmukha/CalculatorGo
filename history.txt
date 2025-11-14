@@ -1,10 +1,6 @@
-Что рассказывается в этом видео? https://youtube.com/videos/y4che890
-Что такое ИИ,
-100*7
-Что такое HTTP
-Что такое HTTP
-Открой сайт https://example.com
-Открой картинку bg5.png
-Открой видео test.mp4
-Открой видео test.mp4
-открой сайт https://chatgpt.com
+открой https://kubsu.ru в yandex-browser-stable
+открой https://kubsu.ru в yandex-browser
+открой https://kubsu.ru в яндексе
+открой https://kubsu.ru в firefox
+открой видео presidents.mov
+открой видео president

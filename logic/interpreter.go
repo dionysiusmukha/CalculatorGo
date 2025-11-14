@@ -106,57 +106,81 @@ func Interpret(cmd string, vars map[string]interface{}) (string, error) {
 		return fmt.Sprintf("HTML got with %s:\n\n%s", url, preview), nil
 	}
 
-	// 4) Свободный текст ...
-if !strings.Contains(cmd, "=") && !strings.HasPrefix(cmd, "curl ") {
-    ex, err := net.ExtractFreeForm(cmd)
-    if err == nil && ex != nil {
+	// 4) Свободный текст или математика (без '=' и без явного 'curl ')
+	if !strings.Contains(cmd, "=") && !strings.HasPrefix(cmd, "curl ") {
+		// СНАЧАЛА математика
+		if looksLikeMath(cmd) {
+			tokens := tokenize(cmd)
+			rpn := toRPN(tokens)
+			val, err := evalRPNWithInterface(rpn, vars)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("%v", val), nil
+		}
 
-        // a) Открыть сайт в браузере
-        if strings.EqualFold(ex.Action, "open") && strings.EqualFold(ex.Target, "browser") && strings.TrimSpace(ex.URL) != "" {
-            if err := osrun.OpenInBrowser(strings.TrimSpace(ex.URL)); err != nil {
-                return "", fmt.Errorf("не удалось открыть в браузере: %v", err)
-            }
-            return fmt.Sprintf("Открыл в браузере: %s", strings.TrimSpace(ex.URL)), nil
-        }
+		// Иначе — свободный текст → экстрактор
+		ex, err := net.ExtractFreeForm(cmd)
+		if err == nil && ex != nil {
 
-        // b) Открыть видеофайл в плеере
-        if strings.EqualFold(ex.Action, "open") && strings.EqualFold(ex.Target, "video") && strings.TrimSpace(ex.Filename) != "" {
-            path, ferr := osrun.FindMediaFile(strings.TrimSpace(ex.Filename), 3)
-            if ferr != nil {
-                return "", ferr
-            }
-            if err := osrun.OpenWithPlayer(path); err != nil {
-                return "", fmt.Errorf("не удалось открыть видео: %v", err)
-            }
-            return fmt.Sprintf("Открыл видеофайл: %s", path), nil
-        }
+						// a) Открыть сайт в браузере (учитываем, что модель могла поставить target:"app")
+			if strings.EqualFold(ex.Action, "open") &&
+				strings.TrimSpace(ex.URL) != "" &&
+				(strings.EqualFold(ex.Target, "browser") || strings.EqualFold(ex.Target, "app")) {
 
-        // c) Старый сценарий: curl + инструкция (сводка и т.п.)
-        if strings.EqualFold(ex.Action, "curl") && strings.TrimSpace(ex.URL) != "" {
-            content, err := net.Curl(strings.TrimSpace(ex.URL))
-            if err != nil {
-                return "", err
-            }
-            vars["last_curl"] = content
-            instr := strings.TrimSpace(ex.Instruction)
-            if instr == "" {
-                instr = "Сделай краткую сводку содержимого страницы."
-            }
-            answer, err := net.AskWithContext(instr, content)
-            if err != nil {
-                return "", fmt.Errorf("ошибка DeepSeek (context): %v", err)
-            }
-            return answer, nil
-        }
-    }
+				url := strings.TrimSpace(ex.URL)
+				app := strings.TrimSpace(ex.App)
 
-    // Фолбэк — обычный чат
-    response, err := net.SendToDeepSeek(cmd)
-    if err != nil {
-        return "", fmt.Errorf("ошибка DeepSeek: %v", err)
-    }
-    return response, nil
-}
+				if err := osrun.OpenInBrowserPrefer(url, app); err != nil {
+					return "", fmt.Errorf("не удалось открыть в браузере: %v", err)
+				}
+
+				used := app
+				if used == "" {
+					used = "(браузер по умолчанию)"
+				}
+				return fmt.Sprintf("Открыл в браузере %s: %s", used, url), nil
+			}
+
+
+			// b) Открыть видеофайл в плеере
+			if strings.EqualFold(ex.Action, "open") && strings.EqualFold(ex.Target, "video") && strings.TrimSpace(ex.Filename) != "" {
+				path, ferr := osrun.FindMediaFile(strings.TrimSpace(ex.Filename), 3)
+				if ferr != nil {
+					return "", ferr
+				}
+				if err := osrun.OpenWithPlayer(path); err != nil {
+					return "", fmt.Errorf("не удалось открыть видео: %v", err)
+				}
+				return fmt.Sprintf("Открыл видеофайл: %s", path), nil
+			}
+
+			// c) curl + инструкция
+			if strings.EqualFold(ex.Action, "curl") && strings.TrimSpace(ex.URL) != "" {
+				content, err := net.Curl(strings.TrimSpace(ex.URL))
+				if err != nil {
+					return "", err
+				}
+				vars["last_curl"] = content
+				instr := strings.TrimSpace(ex.Instruction)
+				if instr == "" {
+					instr = "Сделай краткую сводку содержимого страницы."
+				}
+				answer, err := net.AskWithContext(instr, content)
+				if err != nil {
+					return "", fmt.Errorf("ошибка DeepSeek (context): %v", err)
+				}
+				return answer, nil
+			}
+		}
+
+		// Фолбэк — обычный чат
+		response, err := net.SendToDeepSeek(cmd)
+		if err != nil {
+			return "", fmt.Errorf("ошибка DeepSeek: %v", err)
+		}
+		return response, nil
+	}
 
 
 

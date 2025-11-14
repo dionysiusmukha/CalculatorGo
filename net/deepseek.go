@@ -141,12 +141,13 @@ func ExtractFreeForm(userText string) (*Extracted, error) {
  "instruction": "string|null"
 }
 Правила:
-- Если пользователь просит ОТКРЫТЬ САЙТ в браузере — action:"open", target:"browser", url:"http/https".
+- Если пользователь просит ОТКРЫТЬ САЙТ (даже если указал конкретный браузер, например "в yandex-browser-stable", "в яндекс браузере", "в chrome"):
+  action:"open", target:"browser" ИЛИ target:"app", url:"http/https", app:"имя браузера".
 - Если просит ОТКРЫТЬ ВИДЕОФАЙЛ — action:"open", target:"video", filename:"имя файла".
-- Если просит просто ОТКРЫТЬ ЛОКАЛЬНОЕ ПРИЛОЖЕНИЕ — action:"open", target:"app", app:"vlc/chrome/..."
-- Если просит ПРОЧИТАТЬ САЙТ/ДАТЬ СВОДКУ — action:"curl", url:"http/https", instruction:"..."
-- Если это обычный вопрос без URL и без открытия приложений — action:"chat".
+- Если просит ПРОЧИТАТЬ САЙТ/ДАТЬ СВОДКУ — action:"curl", url:"http/https", instruction:"...".
+- Если это обычный вопрос — action:"chat".
 Выводи ТОЛЬКО JSON.`
+
 	user := userText
 
 	out, err := sendMessages([]map[string]string{
