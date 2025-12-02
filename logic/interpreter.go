@@ -9,6 +9,9 @@ import (
 	"unicode"
 )
 
+var openInBrowser = osrun.OpenInBrowserPrefer
+
+
 func IsValidVarName(name string) bool {
 	if len(name) == 0 {
 		return false
@@ -119,11 +122,37 @@ func Interpret(cmd string, vars map[string]interface{}) (string, error) {
 			return fmt.Sprintf("%v", val), nil
 		}
 
+			// Спец-команда: "позвонить <username>"
+		if strings.HasPrefix(strings.ToLower(cmd), "позвонить ") {
+			friend := strings.TrimSpace(cmd[len("позвонить "):])
+			if friend == "" {
+				return "", fmt.Errorf("укажи кому звонить: позвонить <username>")
+			}
+
+			
+			const signalingHost = "172.20.10.4:8080"
+			const callerUsername = "den"              
+
+			url := fmt.Sprintf(
+				"https://%s/?username=%s&target=%s&type=video",
+				signalingHost,
+				callerUsername,
+				friend,
+			)
+
+			if err := openInBrowser(url, ""); err != nil {
+				return "", fmt.Errorf("не удалось открыть звонок: %v", err)
+			}
+
+			return fmt.Sprintf("Звоню пользователю %s...", friend), nil
+		}
+
+
 		// Иначе — свободный текст → экстрактор
 		ex, err := net.ExtractFreeForm(cmd)
 		if err == nil && ex != nil {
 
-						// a) Открыть сайт в браузере (учитываем, что модель могла поставить target:"app")
+						// a) Открыть сайт в браузере
 			if strings.EqualFold(ex.Action, "open") &&
 				strings.TrimSpace(ex.URL) != "" &&
 				(strings.EqualFold(ex.Target, "browser") || strings.EqualFold(ex.Target, "app")) {
